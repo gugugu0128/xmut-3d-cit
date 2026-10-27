@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XMUT 3D City</title>
+    <script src="https://cdn.jsdelivr.net/npm/cesium@1.100.0/Build/Cesium/Cesium.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/cesium@1.100.0/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body, #cesiumContainer { width: 100%; height: 100%; overflow: hidden; }
+
+        /* 顶部导航栏 */
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 999;
+            background-color: #333;
+        }
+        .navbar ul {
+            list-style: none;
+            display: flex;
+        }
+        .navbar li {
+            position: relative;
+        }
+        .navbar a {
+            display: block;
+            padding: 15px 25px;
+            color: white;
+            text-decoration: none;
+            font-family: Arial, sans-serif;
+        }
+        .navbar li:hover > a {
+            background-color: #4CAF50;
+        }
+        .navbar .dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background-color: #333;
+            min-width: 150px;
+        }
+        .navbar li:hover .dropdown {
+            display: block;
+        }
+        .navbar .dropdown li {
+            width: 100%;
+        }
+
+        /* 左下角信息面板 */
+        .info-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 999;
+            background-color: rgba(51, 51, 51, 0.85);
+            padding: 15px 20px;
+            border-radius: 8px;
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.8;
+        }
+        .info-panel span {
+            color: #4CAF50;
+        }
+
+        /* 当前选中的底图 */
+        .navbar .dropdown a.basemap-option.active {
+            background-color: #4CAF50;
+            color: #ffffff;
+        }
+
+        /* 保证下拉菜单显示在 Cesium 画布上方 */
+        .navbar .dropdown {
+            z-index: 1000;
+        }
+
+        /* 高校切换菜单需要更宽，防止校区名称换行 */
+        .navbar .campus-dropdown {
+            min-width: 245px;
+        }
+
+        /* 高校名称保持单行 */
+        .navbar .campus-dropdown a {
+            white-space: nowrap;
+        }
+
+        /* 当前选中的高校 */
+        .navbar .campus-dropdown a.campus-option.active {
+            background-color: #4CAF50;
+            color: #ffffff;
+        }
+
+        /* 保证菜单位于 Cesium 画布上层 */
+        .navbar .campus-dropdown {
+            z-index: 1001;
+        }
+
+        /* 顶部导航栏右侧静态文字 */
+        .navbar .navbar-label {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+        }
+
+        /* 文字显示样式，无点击功能 */
+        .navbar .navbar-label span {
+            display: block;
+            padding: 15px 25px;
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+            font-size: 16px;
+            white-space: nowrap;
+            cursor: default;
+            user-select: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+
+    <!-- 顶部导航栏 -->
+    <nav class="navbar">
+        <ul>
+            <li><a href="javascript:void(0);" onclick="goHome()">首页</a></li>
+            <li>
+                <a href="javascript:void(0);">视角切换</a>
+                <ul class="dropdown">
+                    <li><a href="javascript:void(0);" onclick="setView('initial')">初始视角</a></li>
+                    <li><a href="javascript:void(0);" onclick="setView('city15')">城市15°视角</a></li>
+                </ul>
+            </li>
+            <li>
+                <a href="javascript:void(0);">图层切换</a>
+                <ul class="dropdown">
+                    <li>
+                        <a
+                            href="javascript:void(0);"
+                            class="basemap-option active"
+                            data-basemap="street"
+                            onclick="switchBaseMap('street')"
+                        >
+                            二维地图
+                        </a>
+                    </li>
+                    <li>
+                        <a
+                            href="javascript:void(0);"
+                            class="basemap-option"
+                            data-basemap="satellite"
+                            onclick="switchBaseMap('satellite')"
+                        >
+                            卫星地图
+                        </a>
+                    </li>
+                </ul>
+            </li>
+            <li>
+                <a href="javascript:void(0);">高校切换</a>
+
+                <ul class="dropdown campus-dropdown">
+                     <li>
+                        <a
+                            href="javascript:void(0);"
+                            class="campus-option active"
+                            data-campus="xmut-jimei"
+                            onclick="switchCampus('xmut-jimei')"
+                        >
+                            厦门理工学院集美校区
+                        </a>
+                    </li>
+
+                    <li>
+                        <a
+                            href="javascript:void(0);"
+                            class="campus-option"
+                            data-campus="xmut-siming"
+                            onclick="switchCampus('xmut-siming')"
+                        >
+                            厦门理工学院思明校区
+                        </a>
+                    </li>
+                    <li>
+                        <a
+                            href="javascript:void(0);"
+                            class="campus-option"
+                            data-campus="xmu-siming"
+                            onclick="switchCampus('xmu-siming')"
+                        >
+                            厦门大学思明校区
+                        </a>
+                    </li>
+
+                    <li>
+                        <a
+                            href="javascript:void(0);"
+                            class="campus-option"
+                            data-campus="xmu-xiangan"
+                            onclick="switchCampus('xmu-xiangan')"
+                        >
+                            厦门大学翔安校区
+                        </a>
+                    </li>
+
+                   
+
+                    <li>
+                        <a
+                            href="javascript:void(0);"
+                            class="campus-option"
+                            data-campus="hqu-xiamen"
+                            onclick="switchCampus('hqu-xiamen')"
+                        >
+                            华侨大学
+                        </a>
+                    </li>
+
+                    <li>
+                        <a
+                            href="javascript:void(0);"
+                            class="campus-option"
+                            data-campus="jmu"
+                            onclick="switchCampus('jmu')"
+                        >
+                            集美大学
+                        </a>
+                    </li>
+                </ul>
+            </li>
+            <li>
+                <a href="javascript:void(0);">气候效果</a>
+                <ul class="dropdown">
+                    <li><a href="javascript:void(0);" onclick="changeWeather('rain')">雨</a></li>
+                    <li><a href="javascript:void(0);" onclick="changeWeather('snow')">雪</a></li>
+                    <li><a href="javascript:void(0);" onclick="changeWeather('clear')">晴朗</a></li>
+                </ul>
+            </li>
+            <li>
+                <a href="javascript:void(0);">模式切换</a>
+                <ul class="dropdown">
+                    <li><a href="javascript:void(0);" onclick="toggleGrid(true)">网格模式</a></li>
+                    <li><a href="javascript:void(0);" onclick="toggleGrid(false)">关闭网格</a></li>
+                    <li><a href="javascript:void(0);" onclick="toggleTiles(true)">瓦片模式</a></li>
+                    <li><a href="javascript:void(0);" onclick="toggleTiles(false)">关闭瓦片</a></li>
+                </ul>
+            </li>
+            <li>
+                <a href="javascript:void(0);">飞行模式</a>
+                <ul class="dropdown">
+                    <li><a href="javascript:void(0);" onclick="startOrbitFlight()">相机飞行</a></li>
+                    <li><a href="javascript:void(0);" onclick="stopFlight()">停止飞行</a></li>
+                </ul>
+            </li>
+
+            <!-- 右侧静态文字 -->
+            <li class="navbar-label">
+                <span>2210418125陈婉婧</span>
+            </li>
+        </ul>
+    </nav>
+
+    <!-- 左下角信息面板 -->
+    <div class="info-panel">
+        <div>国家：<span id="country">中国</span></div>
+        <div>地名：<span id="city">厦门市</span></div>
+        <div>经度：<span id="longitude">118.08700</span></div>
+        <div>纬度：<span id="latitude">24.62300</span></div>
+    </div>
+
+    <!-- 引入外部功能模块 -->
+    <script src="js/home/home.js"></script>
+    <script src="js/view/view.js"></script>
+    <script src="js/weather/weather.js"></script>
+    <script src="js/mode/mode.js"></script>
+    <script src="js/flight/flight.js"></script>
+    <script src="js/basicmap/basicmap.js"></script>
+    <script src="js/campus/campus.js"></script>
+
+    <script>
+        // 初始化 Viewer
+        const viewer = new Cesium.Viewer(
+            'cesiumContainer',
+            {
+                timeline: false,
+                animation: false,
+                fullscreenButton: false,
+
+                // 关闭 Cesium 自带底图选择器
+                baseLayerPicker: false,
+
+                // 使用预定义的 streetMapProvider
+                imageryProvider: streetMapProvider,
+
+                // 使用无需 Token 的 WGS84 椭球地形
+                terrainProvider:
+                    new Cesium.EllipsoidTerrainProvider(),
+
+                geocoder: false,
+                homeButton: false,
+                sceneModePicker: false,
+                navigationHelpButton: false,
+                infoBox: false,
+                selectionIndicator: false
+            }
+        );
+
+        // 初始化底图图层（必须在 Viewer 创建后调用）
+        initBaseMapLayers();
+
+        // 初始化视角切换模块
+        initViewSwitcher(viewer);
+
+        // 初始化高校切换模块（必须在 Viewer 创建后调用）
+        initCampusSwitcher(viewer);
+
+        // 加载 GeoJSON 白模数据
+        Cesium.GeoJsonDataSource.load('./data/xmutBuilding.geojson').then(function(dataSource) {
+            viewer.dataSources.add(dataSource);
+            const entities = dataSource.entities.values;
+            for (let i = 0; i < entities.length; i++) {
+                const entity = entities[i];
+                if (entity.polygon) {
+                    entity.polygon.material = Cesium.Color.fromCssColorString('#e0e0e0');
+                    const randomHeight = 15 + Math.random() * 20;
+                    entity.polygon.extrudedHeight = randomHeight;
+                }
+            }
+        }).catch(function(error) {
+            console.error('加载 GeoJSON 失败:', error);
+            alert("模型数据加载失败！请检查：\n1. 是否使用了 Live Server 运行？\n2. ./data/xmutBuilding.geojson 文件路径是否正确？");
+        });
+
+        // 4. 鼠标坐标实时追踪 + 逆地理编码
+        const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+        let geocodeTimer = null;
+        let lastCoords = { lon: null, lat: null };
+
+        handler.setInputAction(function(movement) {
+            const cartesian = viewer.camera.pickEllipsoid(movement.endPosition, viewer.scene.globe.ellipsoid);
+            if (cartesian) {
+                const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+                const longitude = Cesium.Math.toDegrees(cartographic.longitude).toFixed(5);
+                const latitude = Cesium.Math.toDegrees(cartographic.latitude).toFixed(5);
+
+                document.getElementById('longitude').textContent = longitude;
+                document.getElementById('latitude').textContent = latitude;
+
+                if (geocodeTimer) {
+                    clearTimeout(geocodeTimer);
+                }
+
+                if (lastCoords.lon === null || 
+                    Math.abs(parseFloat(longitude) - lastCoords.lon) > 0.001 || 
+                    Math.abs(parseFloat(latitude) - lastCoords.lat) > 0.001) {
+                    document.getElementById('country').textContent = '查询中...';
+                    document.getElementById('city').textContent = '查询中...';
+                }
+
+                geocodeTimer = setTimeout(function() {
+                    reverseGeocode(parseFloat(latitude), parseFloat(longitude));
+                }, 800);
+            }
+        }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+        function reverseGeocode(lat, lon) {
+            lastCoords = { lon: lon, lat: lat };
+            const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`;
+
+            fetch(url)
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    if (data && data.address) {
+                        document.getElementById('country').textContent = data.address.country || '未知';
+                        const place = data.address.city || data.address.town || data.address.county || data.address.state || '未知';
+                        document.getElementById('city').textContent = place;
+                    }
+                })
+                .catch(function(error) {
+                    console.error('逆地理编码失败:', error);
+                    document.getElementById('country').textContent = '中国';
+                    document.getElementById('city').textContent = '厦门市';
+                });
+        }
+    </script>
+</body>
+</html>
